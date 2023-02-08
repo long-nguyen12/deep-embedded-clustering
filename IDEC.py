@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='train',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('dataset', default='mnist', choices=['mnist', 'usps', 'reutersidf10k'])
+    parser.add_argument('--dataset', default='mnist', choices=['mnist', 'usps', 'reutersidf10k'])
     parser.add_argument('--n_clusters', default=10, type=int)
     parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--maxiter', default=2e4, type=int)
