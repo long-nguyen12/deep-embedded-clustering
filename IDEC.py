@@ -3,7 +3,7 @@ from time import time
 import numpy as np
 from keras.models import Model
 from keras.optimizers import SGD
-from keras.utils.vis_utils import plot_model
+# from keras.utils.vis_utils import plot_model
 
 from keras import callbacks
 from sklearn.cluster import KMeans
@@ -116,7 +116,7 @@ class IDEC(object):
         import csv, os
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        logfile = open(save_dir + '/idec_log.csv', 'wb')
+        logfile = open(save_dir + '/idec_log.csv', 'w')
         logwriter = csv.DictWriter(logfile, fieldnames=['iter', 'acc', 'nmi', 'ari', 'L', 'Lc', 'Lr'])
         logwriter.writeheader()
 
@@ -241,7 +241,7 @@ if __name__ == "__main__":
         idec.autoencoder.load_weights(args.ae_weights)
     
     idec.initialize_model(ae_weights=args.ae_weights, gamma=args.gamma, optimizer=optimizer)
-    plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
+    # plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
     idec.model.summary()
 
     # begin clustering, time not include pretraining part.
