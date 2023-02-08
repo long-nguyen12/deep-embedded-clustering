@@ -254,5 +254,5 @@ if __name__ == "__main__":
     t0 = time()
     y_pred = idec.clustering(x, y=y, tol=args.tol, maxiter=args.maxiter,
                              update_interval=args.update_interval, save_dir=args.save_dir)
-    print('acc:', mt(y, y_pred))
+    print('acc:', metrics.acc(y, y_pred))
     print('clustering time: ', (time() - t0))
