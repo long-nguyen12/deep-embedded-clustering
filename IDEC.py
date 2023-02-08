@@ -122,6 +122,8 @@ class IDEC(object):
 
         loss = [0, 0, 0]
         index = 0
+        index_array = np.arange(x.shape[0])
+
         for ite in range(int(maxiter)):
             if ite % update_interval == 0:
                 q, _ = self.model.predict(x, verbose=0)
@@ -148,15 +150,19 @@ class IDEC(object):
                     break
 
             # train on batch
-            if (index + 1) * self.batch_size > x.shape[0]:
-                loss = self.model.train_on_batch(x=x[index * self.batch_size::],
-                                                 y=[p[index * self.batch_size::], x[index * self.batch_size::]])
-                index = 0
-            else:
-                loss = self.model.train_on_batch(x=x[index * self.batch_size:(index + 1) * self.batch_size],
-                                                 y=[p[index * self.batch_size:(index + 1) * self.batch_size],
-                                                    x[index * self.batch_size:(index + 1) * self.batch_size]])
-                index += 1
+
+            # if (index + 1) * self.batch_size > x.shape[0]:
+            #     loss = self.model.train_on_batch(x=x[index * self.batch_size::],
+            #                                      y=[p[index * self.batch_size::], x[index * self.batch_size::]])
+            #     index = 0
+            # else:
+            #     loss = self.model.train_on_batch(x=x[index * self.batch_size:(index + 1) * self.batch_size],
+            #                                      y=[p[index * self.batch_size:(index + 1) * self.batch_size],
+            #                                         x[index * self.batch_size:(index + 1) * self.batch_size]])
+            #     index += 1
+            idx = index_array[index * self.batch_size: min((index+1) * self.batch_size, x.shape[0])]
+            loss = self.model.train_on_batch(x=x[idx], y=p[idx])
+            index = index + 1 if (index + 1) * self.batch_size <= x.shape[0] else 0
 
             # save intermediate model
             if ite % save_interval == 0:
