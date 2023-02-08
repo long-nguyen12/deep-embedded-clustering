@@ -3,7 +3,7 @@ from time import time
 import numpy as np
 from keras.models import Model
 from keras.optimizers import SGD
-from keras.utils.vis_utils import plot_model
+# from keras.utils.vis_utils import plot_model
 
 from keras import callbacks
 from sklearn.cluster import KMeans
@@ -116,12 +116,14 @@ class IDEC(object):
         import csv, os
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        logfile = open(save_dir + '/idec_log.csv', 'wb')
+        logfile = open(save_dir + '/idec_log.csv', 'w')
         logwriter = csv.DictWriter(logfile, fieldnames=['iter', 'acc', 'nmi', 'ari', 'L', 'Lc', 'Lr'])
         logwriter.writeheader()
 
         loss = [0, 0, 0]
         index = 0
+        index_array = np.arange(x.shape[0])
+
         for ite in range(int(maxiter)):
             if ite % update_interval == 0:
                 q, _ = self.model.predict(x, verbose=0)
@@ -148,15 +150,19 @@ class IDEC(object):
                     break
 
             # train on batch
-            if (index + 1) * self.batch_size > x.shape[0]:
-                loss = self.model.train_on_batch(x=x[index * self.batch_size::],
-                                                 y=[p[index * self.batch_size::], x[index * self.batch_size::]])
-                index = 0
-            else:
-                loss = self.model.train_on_batch(x=x[index * self.batch_size:(index + 1) * self.batch_size],
-                                                 y=[p[index * self.batch_size:(index + 1) * self.batch_size],
-                                                    x[index * self.batch_size:(index + 1) * self.batch_size]])
-                index += 1
+
+            # if (index + 1) * self.batch_size > x.shape[0]:
+            #     loss = self.model.train_on_batch(x=x[index * self.batch_size::],
+            #                                      y=[p[index * self.batch_size::], x[index * self.batch_size::]])
+            #     index = 0
+            # else:
+            #     loss = self.model.train_on_batch(x=x[index * self.batch_size:(index + 1) * self.batch_size],
+            #                                      y=[p[index * self.batch_size:(index + 1) * self.batch_size],
+            #                                         x[index * self.batch_size:(index + 1) * self.batch_size]])
+            #     index += 1
+            idx = index_array[index * self.batch_size: min((index+1) * self.batch_size, x.shape[0])]
+            loss = self.model.train_on_batch(x=x[idx], y=p[idx])
+            index = index + 1 if (index + 1) * self.batch_size <= x.shape[0] else 0
 
             # save intermediate model
             if ite % save_interval == 0:
@@ -241,7 +247,7 @@ if __name__ == "__main__":
         idec.autoencoder.load_weights(args.ae_weights)
     
     idec.initialize_model(ae_weights=args.ae_weights, gamma=args.gamma, optimizer=optimizer)
-    plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
+    # plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
     idec.model.summary()
 
     # begin clustering, time not include pretraining part.
