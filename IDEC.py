@@ -11,7 +11,7 @@ from sklearn import metrics
 
 from DEC import ClusteringLayer, autoencoder
 import metrics as mt
-
+from keras.initializers import VarianceScaling
 
 class IDEC(object):
     def __init__(self,
@@ -36,7 +36,7 @@ class IDEC(object):
         print('...Pretraining...')
         self.autoencoder.compile(optimizer=optimizer, loss='mse')
 
-        csv_logger = callbacks.CSVLogger(save_dir + '/pretrain_log.csv')
+        csv_logger = callbacks.CSVLogger(save_dir + '/pretrain_idec_log.csv')
         cb = [csv_logger]
         if y is not None:
             class PrintACC(callbacks.Callback):
@@ -69,14 +69,6 @@ class IDEC(object):
         self.pretrained = True
 
     def initialize_model(self, ae_weights=None, gamma=0.1, optimizer='adam'):
-        if ae_weights is not None:
-            self.autoencoder.load_weights(ae_weights)
-            print('Pretrained AE weights are loaded successfully.')
-        else:
-            print('ae_weights must be given. E.g.')
-            print('    python IDEC.py mnist --ae_weights weights.h5')
-            exit()
-
         hidden = self.autoencoder.get_layer(name='encoder_%d' % (self.n_stacks - 1)).output
         self.encoder = Model(inputs=self.autoencoder.input, outputs=hidden)
 
@@ -201,6 +193,13 @@ if __name__ == "__main__":
     parser.add_argument('--save_dir', default='results/idec')
     args = parser.parse_args()
     print(args)
+    import os
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
+    
+    from datasets import load_data
+    x, y = load_data(args.dataset)
+    n_clusters = len(np.unique(y))
     
     init = 'glorot_uniform'
     pretrain_optimizer = 'adam'
@@ -212,16 +211,24 @@ if __name__ == "__main__":
     if args.dataset == 'mnist':  # recommends: n_clusters=10, update_interval=140
         update_interval = 140
         pretrain_epochs = 300
-        x, y = load_mnist()
         optimizer = 'adam'
+        init = VarianceScaling(scale=1. / 3., mode='fan_in',
+                               distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
+        pretrain_optimizer = SGD(lr=1, momentum=0.9)
     elif args.dataset == 'usps':  # recommends: n_clusters=10, update_interval=30
-        x, y = load_usps('data/usps')
         update_interval = 30
         pretrain_epochs = 50
+        init = VarianceScaling(scale=1. / 3., mode='fan_in',
+                               distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
+        pretrain_optimizer = SGD(lr=1, momentum=0.9)    
     elif args.dataset == 'reutersidf10k':  # recommends: n_clusters=4, update_interval=3
-        x, y = load_reuters('data/reuters')
         update_interval = 30
         pretrain_epochs = 50
+
+    if args.update_interval is not None:
+        update_interval = args.update_interval
+    if args.pretrain_epochs is not None:
+        pretrain_epochs = args.pretrain_epochs
 
     # prepare the IDEC model
     idec = IDEC(dims=[x.shape[-1], 500, 500, 2000, 10], n_clusters=args.n_clusters, batch_size=args.batch_size)
