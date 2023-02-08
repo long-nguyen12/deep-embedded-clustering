@@ -7,10 +7,9 @@ from keras.utils.vis_utils import plot_model
 
 from keras import callbacks
 from sklearn.cluster import KMeans
-from sklearn import metrics
 
 from DEC import ClusteringLayer, autoencoder
-import metrics as mt
+import metrics
 from keras.initializers import VarianceScaling
 
 class IDEC(object):
@@ -133,9 +132,9 @@ class IDEC(object):
                 delta_label = np.sum(y_pred != y_pred_last).astype(np.float32) / y_pred.shape[0]
                 y_pred_last = y_pred
                 if y is not None:
-                    acc = np.round(mt(y, y_pred), 5)
-                    nmi = np.round(metrics.normalized_mutual_info_score(y, y_pred), 5)
-                    ari = np.round(metrics.adjusted_rand_score(y, y_pred), 5)
+                    acc = np.round(metrics.acc(y, y_pred), 5)
+                    nmi = np.round(metrics.nmi(y, y_pred), 5)
+                    ari = np.round(metrics.ari(y, y_pred), 5)
                     loss = np.round(loss, 5)
                     logdict = dict(iter=ite, acc=acc, nmi=nmi, ari=ari, L=loss[0], Lc=loss[1], Lr=loss[2])
                     logwriter.writerow(logdict)
