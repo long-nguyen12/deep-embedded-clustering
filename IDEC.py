@@ -18,7 +18,8 @@ class IDEC(object):
                  dims,
                  n_clusters=10,
                  alpha=1.0,
-                 batch_size=256):
+                 batch_size=256,
+                 init='glorot_uniform'):
 
         super(IDEC, self).__init__()
 
@@ -29,7 +30,7 @@ class IDEC(object):
         self.n_clusters = n_clusters
         self.alpha = alpha
         self.batch_size = batch_size
-        self.autoencoder = autoencoder(self.dims)
+        self.autoencoder, self.encoder = autoencoder(self.dims, init=init)
 
     def pretrain(self, x, y=None, optimizer='adam', epochs=200, batch_size=256, save_dir='results/temp'):
         print('...Pretraining...')
