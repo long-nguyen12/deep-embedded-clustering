@@ -5,6 +5,7 @@ from keras.models import Model
 from keras.optimizers import SGD
 from keras.utils.vis_utils import plot_model
 
+from keras import callbacks
 from sklearn.cluster import KMeans
 from sklearn import metrics
 
@@ -29,6 +30,42 @@ class IDEC(object):
         self.alpha = alpha
         self.batch_size = batch_size
         self.autoencoder = autoencoder(self.dims)
+
+    def pretrain(self, x, y=None, optimizer='adam', epochs=200, batch_size=256, save_dir='results/temp'):
+        print('...Pretraining...')
+        self.autoencoder.compile(optimizer=optimizer, loss='mse')
+
+        csv_logger = callbacks.CSVLogger(save_dir + '/pretrain_log.csv')
+        cb = [csv_logger]
+        if y is not None:
+            class PrintACC(callbacks.Callback):
+                def __init__(self, x, y):
+                    self.x = x
+                    self.y = y
+                    super(PrintACC, self).__init__()
+
+                def on_epoch_end(self, epoch, logs=None):
+                    if int(epochs/10) != 0 and epoch % int(epochs/10) != 0:
+                        return
+                    feature_model = Model(self.model.input,
+                                          self.model.get_layer(
+                                              'encoder_%d' % (int(len(self.model.layers) / 2) - 1)).output)
+                    features = feature_model.predict(self.x)
+                    km = KMeans(n_clusters=len(np.unique(self.y)), n_init=20)
+                    y_pred = km.fit_predict(features)
+                    # print()
+                    print(' '*8 + '|==>  acc: %.4f,  nmi: %.4f  <==|'
+                          % (metrics.acc(self.y, y_pred), metrics.nmi(self.y, y_pred)))
+
+            cb.append(PrintACC(x, y))
+
+        # begin pretraining
+        t0 = time()
+        self.autoencoder.fit(x, x, batch_size=batch_size, epochs=epochs, callbacks=cb)
+        print('Pretraining time: %ds' % round(time() - t0))
+        self.autoencoder.save_weights(save_dir + '/ae_weights.h5')
+        print('Pretrained weights are saved to %s/ae_weights.h5' % save_dir)
+        self.pretrained = True
 
     def initialize_model(self, ae_weights=None, gamma=0.1, optimizer='adam'):
         if ae_weights is not None:
@@ -163,21 +200,38 @@ if __name__ == "__main__":
     parser.add_argument('--save_dir', default='results/idec')
     args = parser.parse_args()
     print(args)
+    
+    init = 'glorot_uniform'
+    pretrain_optimizer = 'adam'
 
     # load dataset
     optimizer = SGD(lr=0.1, momentum=0.99)
     from datasets import load_mnist, load_reuters, load_usps
 
     if args.dataset == 'mnist':  # recommends: n_clusters=10, update_interval=140
+        update_interval = 140
+        pretrain_epochs = 300
         x, y = load_mnist()
         optimizer = 'adam'
     elif args.dataset == 'usps':  # recommends: n_clusters=10, update_interval=30
         x, y = load_usps('data/usps')
+        update_interval = 30
+        pretrain_epochs = 50
     elif args.dataset == 'reutersidf10k':  # recommends: n_clusters=4, update_interval=3
         x, y = load_reuters('data/reuters')
+        update_interval = 30
+        pretrain_epochs = 50
 
     # prepare the IDEC model
     idec = IDEC(dims=[x.shape[-1], 500, 500, 2000, 10], n_clusters=args.n_clusters, batch_size=args.batch_size)
+    
+    if args.ae_weights is None:
+        idec.pretrain(x=x, y=y, optimizer=pretrain_optimizer,
+                     epochs=pretrain_epochs, batch_size=args.batch_size,
+                     save_dir=args.save_dir)
+    else:
+        idec.autoencoder.load_weights(args.ae_weights)
+    
     idec.initialize_model(ae_weights=args.ae_weights, gamma=args.gamma, optimizer=optimizer)
     plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
     idec.model.summary()
