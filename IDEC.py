@@ -8,7 +8,8 @@ from keras.utils.vis_utils import plot_model
 from sklearn.cluster import KMeans
 from sklearn import metrics
 
-from DEC import cluster_acc, ClusteringLayer, autoencoder
+from DEC import ClusteringLayer, autoencoder
+import metrics as mt
 
 
 class IDEC(object):
@@ -102,7 +103,7 @@ class IDEC(object):
                 delta_label = np.sum(y_pred != y_pred_last).astype(np.float32) / y_pred.shape[0]
                 y_pred_last = y_pred
                 if y is not None:
-                    acc = np.round(cluster_acc(y, y_pred), 5)
+                    acc = np.round(mt(y, y_pred), 5)
                     nmi = np.round(metrics.normalized_mutual_info_score(y, y_pred), 5)
                     ari = np.round(metrics.adjusted_rand_score(y, y_pred), 5)
                     loss = np.round(loss, 5)
@@ -185,5 +186,5 @@ if __name__ == "__main__":
     t0 = time()
     y_pred = idec.clustering(x, y=y, tol=args.tol, maxiter=args.maxiter,
                              update_interval=args.update_interval, save_dir=args.save_dir)
-    print('acc:', cluster_acc(y, y_pred))
+    print('acc:', mt(y, y_pred))
     print('clustering time: ', (time() - t0))
