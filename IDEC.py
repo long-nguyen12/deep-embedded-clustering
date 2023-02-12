@@ -201,7 +201,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='train',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dataset', default='mnist',
-                        choices=['mnist', 'usps', 'reutersidf10k'])
+                        choices=['mnist', 'fmnist', 'usps', 'reutersidf10k'])
     parser.add_argument('--n_clusters', default=10, type=int)
     parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--maxiter', default=2e4, type=int)
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     optimizer = SGD(lr=0.1, momentum=0.99)
     from datasets import load_mnist, load_reuters, load_usps
 
-    if args.dataset == 'mnist':  # recommends: n_clusters=10, update_interval=140
+    if args.dataset == 'mnist' or args.dataset == 'fmnist':  # recommends: n_clusters=10, update_interval=140
         update_interval = 140
         pretrain_epochs = 300
         optimizer = 'adam'
