@@ -2,7 +2,7 @@ import numpy as np
 
 
 def extract_vgg16_features(x):
-    from keras.preprocessing.image import img_to_array, array_to_img
+    from keras.utils import img_to_array, array_to_img
     from keras.applications.resnet50 import preprocess_input, ResNet50
     from keras.models import Model
 
