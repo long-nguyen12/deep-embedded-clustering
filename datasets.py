@@ -2,13 +2,13 @@ import numpy as np
 
 
 def extract_vgg16_features(x):
-    from keras.utils import img_to_array, array_to_img
-    from keras.applications.vgg16 import preprocess_input, VGG16
+    from keras.preprocessing.image import img_to_array, array_to_img
+    from keras.applications.resnet50 import preprocess_input, ResNet50
     from keras.models import Model
 
     # im_h = x.shape[1]
     im_h = 224
-    model = VGG16(include_top=True, weights='imagenet', input_shape=(im_h, im_h, 3))
+    model = ResNet50(include_top=True, weights='imagenet', input_shape=(im_h, im_h, 3))
     # if flatten:
     #     add_layer = Flatten()
     # else:
@@ -322,8 +322,6 @@ def load_data(dataset_name):
         return load_reuters()
     elif dataset_name == 'stl':
         return load_stl()
-    elif dataset_name == 'cifar10':
-        return load_cifar10()
     else:
         print('Not defined for loading', dataset_name)
         exit(0)
