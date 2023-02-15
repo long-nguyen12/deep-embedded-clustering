@@ -322,6 +322,8 @@ def load_data(dataset_name):
         return load_reuters()
     elif dataset_name == 'stl':
         return load_stl()
+    elif dataset_name == 'cifar10':
+        return load_cifar10()
     else:
         print('Not defined for loading', dataset_name)
         exit(0)
