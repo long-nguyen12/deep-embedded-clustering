@@ -2,7 +2,7 @@ import numpy as np
 
 
 def extract_vgg16_features(x):
-    from keras.preprocessing.image import img_to_array, array_to_img
+    from keras.utils import img_to_array, array_to_img
     from keras.applications.vgg16 import preprocess_input, VGG16
     from keras.models import Model
 
@@ -322,6 +322,8 @@ def load_data(dataset_name):
         return load_reuters()
     elif dataset_name == 'stl':
         return load_stl()
+    elif dataset_name == 'cifar10':
+        return load_cifar10()
     else:
         print('Not defined for loading', dataset_name)
         exit(0)

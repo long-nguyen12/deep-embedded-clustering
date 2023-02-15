@@ -183,7 +183,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='train',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--dataset', default='mnist', choices=['mnist', 'usps', 'reutersidf10k'])
+    parser.add_argument('--dataset', default='mnist', choices=['mnist', 'usps', 'reutersidf10k', 'cifar10'])
     parser.add_argument('--n_clusters', default=10, type=int)
     parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--maxiter', default=2e4, type=int)
@@ -209,7 +209,7 @@ if __name__ == "__main__":
 
     # load dataset
     optimizer = SGD(lr=0.1, momentum=0.99)
-    from datasets import load_mnist, load_reuters, load_usps
+    from datasets import load_mnist, load_reuters, load_usps, load_cifar10
 
     if args.dataset == 'mnist':  # recommends: n_clusters=10, update_interval=140
         update_interval = 140
@@ -218,6 +218,12 @@ if __name__ == "__main__":
         init = VarianceScaling(scale=1. / 3., mode='fan_in',
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
+    elif args.dataset == 'cifar10':  # recommends: n_clusters=10, update_interval=30
+        update_interval = 140
+        pretrain_epochs = 300
+        init = VarianceScaling(scale=1. / 3., mode='fan_in',
+                               distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
+        pretrain_optimizer = SGD(lr=1, momentum=0.9)    
     elif args.dataset == 'usps':  # recommends: n_clusters=10, update_interval=30
         update_interval = 30
         pretrain_epochs = 50
