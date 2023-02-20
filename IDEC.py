@@ -1,4 +1,5 @@
 
+from math import gamma
 from time import time
 import numpy as np
 from keras.models import Model
@@ -94,7 +95,7 @@ class IDEC(object):
         weight = q ** 2 / q.sum(0)
         return (weight.T / weight.sum(1)).T
 
-    def compile(self, optimizer='sgd', loss={'clustering': 'kld', 'decoder_0': 'mse'}, loss_weights=[gamma, 1]):
+    def compile(self, optimizer='sgd', loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1):
         self.model.compile(loss={'clustering': 'kld', 'decoder_0': 'mse'},
                            loss_weights=[gamma, 1],
                            optimizer=optimizer)
@@ -266,6 +267,7 @@ if __name__ == "__main__":
 
     #plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
     idec.model.summary()
+    idec.compile(optimizer=optimizer, loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1)
     # begin clustering, time not include pretraining part.
     t0 = time()
     y_pred = idec.clustering(x, y=y, tol=args.tol, maxiter=args.maxiter,
