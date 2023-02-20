@@ -8,41 +8,9 @@ from keras.optimizers import SGD
 from keras import callbacks
 from sklearn.cluster import KMeans
 
-from DEC import ClusteringLayer
+from DEC import ClusteringLayer, autoencoder
 import metrics
 from keras.initializers import VarianceScaling
-from keras.layers import Dense, Input
-
-def autoencoder(dims, act='relu', init='glorot_uniform'):
-    """
-    Fully connected auto-encoder model, symmetric.
-    Arguments:
-        dims: list of number of units in each layer of encoder. dims[0] is input dim, dims[-1] is units in hidden layer.
-            The decoder is symmetric with encoder. So number of layers of the auto-encoder is 2*len(dims)-1
-        act: activation, not applied to Input, Hidden and Output layers
-    return:
-        Model of autoencoder
-    """
-    n_stacks = len(dims) - 1
-    # input
-    x = Input(shape=(dims[0],), name='input')
-    h = x
-
-    # internal layers in encoder
-    for i in range(n_stacks-1):
-        h = Dense(dims[i + 1], activation=act, name='encoder_%d' % i)(h)
-
-    # hidden layer
-    h = Dense(dims[-1], name='encoder_%d' % (n_stacks - 1))(h)  # hidden layer, features are extracted from here
-
-    # internal layers in decoder
-    for i in range(n_stacks-1, 0, -1):
-        h = Dense(dims[i], activation=act, name='decoder_%d' % i)(h)
-
-    # output
-    h = Dense(dims[0], kernel_initializer=init, name='decoder_0')(h)
-
-    return Model(inputs=x, outputs=h, name='AE')
 
 class IDEC(object):
     def __init__(self,
@@ -61,7 +29,7 @@ class IDEC(object):
         self.n_clusters = n_clusters
         self.alpha = alpha
         self.batch_size = batch_size
-        self.autoencoder, _= autoencoder(self.dims, init=init)
+        self.autoencoder, self.encoder = autoencoder(self.dims, init=init)
 
 
     def pretrain(self, x, y=None, optimizer='adam', epochs=200, batch_size=256, save_dir='results/temp'):
@@ -101,7 +69,7 @@ class IDEC(object):
         print('Pretrained weights are saved to %s/ae_weights.h5' % save_dir)
         self.pretrained = True
 
-    def initialize_model(self, gamma=0.1, optimizer='adam'):
+    def initialize_model(self, ae_weights=None, gamma=0.1, optimizer='adam'):
         hidden = self.autoencoder.get_layer(name='encoder_%d' % (self.n_stacks - 1)).output
         self.encoder = Model(inputs=self.autoencoder.input, outputs=hidden)
 
