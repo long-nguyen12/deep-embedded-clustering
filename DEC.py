@@ -139,7 +139,8 @@ class DEC(object):
         self.model = Model(inputs=self.encoder.input, outputs=clustering_layer)
 
     def pretrain(self, x, y=None, optimizer='adam', epochs=200, batch_size=256, save_dir='results/temp'):
-        print('...Pretraining...')
+        print('...Pretraining..., batch_size = ', batch_size)
+        self.autoencoder.summary()
         self.autoencoder.compile(optimizer=optimizer, loss='mse')
 
         csv_logger = callbacks.CSVLogger(save_dir + '/pretrain_log.csv')
@@ -160,7 +161,7 @@ class DEC(object):
                     features = feature_model.predict(self.x)
                     km = KMeans(n_clusters=len(np.unique(self.y)), n_init=20)
                     y_pred = km.fit_predict(features)
-                    # print()
+                    print(self.y, np.unique(self.y), len(np.unique(self.y)), 'encoder_%d' % (int(len(self.model.layers) / 2) - 1))
                     print(' '*8 + '|==>  acc: %.4f,  nmi: %.4f  <==|'
                           % (metrics.acc(self.y, y_pred), metrics.nmi(self.y, y_pred)))
 
@@ -196,7 +197,7 @@ class DEC(object):
             update_interval=140, save_dir='./results/temp'):
 
         print('Update interval', update_interval)
-        save_interval = int(x.shape[0] / batch_size) * 5  # 5 epochs
+        save_interval = int(x.shape[0] / batch_size) * 10  # 10 epochs
         print('Save interval', save_interval)
 
         # Step 1: initialize cluster centers using k-means

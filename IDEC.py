@@ -31,9 +31,11 @@ class IDEC(object):
         self.batch_size = batch_size
         self.autoencoder, self.encoder = autoencoder(self.dims, init=init)
 
+
     def pretrain(self, x, y=None, optimizer='adam', epochs=200, batch_size=256, save_dir='results/temp'):
-        print('...Pretraining...')
-        self.autoencoder.compile(optimizer=optimizer, loss='mse')
+        print('...Pretraining..., batch_size = ', batch_size)
+        self.autoencoder.summary()
+        self.autoencoder.compile(optimizer=optimizer, loss='mse')        
 
         csv_logger = callbacks.CSVLogger(save_dir + '/pretrain_idec_log.csv')
         cb = [csv_logger]
@@ -53,7 +55,7 @@ class IDEC(object):
                     features = feature_model.predict(self.x)
                     km = KMeans(n_clusters=len(np.unique(self.y)), n_init=20)
                     y_pred = km.fit_predict(features)
-                    # print()
+                    print(self.y, np.unique(self.y), len(np.unique(self.y)), 'encoder_%d' % (int(len(self.model.layers) / 2) - 1))
                     print(' '*8 + '|==>  acc: %.4f,  nmi: %.4f  <==|'
                           % (metrics.acc(self.y, y_pred), metrics.nmi(self.y, y_pred)))
 
@@ -79,6 +81,8 @@ class IDEC(object):
                            loss_weights=[gamma, 1],
                            optimizer=optimizer)
 
+        print('+ idec: gamma = ',gamma)
+
     def load_weights(self, weights_path):  # load weights of IDEC model
         self.model.load_weights(weights_path)
 
@@ -102,7 +106,7 @@ class IDEC(object):
                    save_dir='./results/idec'):
 
         print('Update interval', update_interval)
-        save_interval = x.shape[0] / self.batch_size * 5  # 5 epochs
+        save_interval = x.shape[0] / self.batch_size * 10  # 10 epochs
         print('Save interval', save_interval)
 
         # initialize cluster centers using k-means
@@ -250,7 +254,7 @@ if __name__ == "__main__":
         idec.autoencoder.load_weights(args.ae_weights)
     
     idec.initialize_model(ae_weights=args.ae_weights, gamma=args.gamma, optimizer=optimizer)
-    # plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
+    #plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
     idec.model.summary()
 
     # begin clustering, time not include pretraining part.
