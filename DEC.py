@@ -1,14 +1,3 @@
-"""
-Keras implementation for Deep Embedded Clustering (DEC) algorithm:
-
-        Junyuan Xie, Ross Girshick, and Ali Farhadi. Unsupervised deep embedding for clustering analysis. ICML 2016.
-
-Usage:
-    use `python DEC.py -h` for help.
-
-Author:
-    Xifeng Guo. 2017.1.30
-"""
 
 from time import time
 import numpy as np

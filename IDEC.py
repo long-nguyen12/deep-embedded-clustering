@@ -197,7 +197,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='train',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dataset', default='mnist',
-                        choices=['mnist', 'usps', 'reutersidf10k', 'cifar10'])
+                        choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl'])
     parser.add_argument('--n_clusters', default=10, type=int)
     parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--maxiter', default=2e4, type=int)
@@ -215,39 +215,32 @@ if __name__ == "__main__":
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
+    # load dataset
     from datasets import load_data
     x, y = load_data(args.dataset)
     n_clusters = len(np.unique(y))
 
     init = 'glorot_uniform'
     pretrain_optimizer = 'adam'
-
-    # load dataset
-    optimizer = SGD(lr=0.1, momentum=0.99)
-    from datasets import load_mnist, load_reuters, load_usps, load_cifar10
-
-    if args.dataset == 'mnist':  # recommends: n_clusters=10, update_interval=140
-        update_interval = 140
-        pretrain_epochs = 300
-        optimizer = 'adam'
-        init = VarianceScaling(scale=1. / 3., mode='fan_in',
-                               distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
-        pretrain_optimizer = SGD(lr=1, momentum=0.9)
-    elif args.dataset == 'cifar10':  # recommends: n_clusters=10, update_interval=30
+    # setting parameters
+    if args.dataset == 'mnist' or args.dataset == 'fmnist':
         update_interval = 140
         pretrain_epochs = 300
         init = VarianceScaling(scale=1. / 3., mode='fan_in',
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
-    elif args.dataset == 'usps':  # recommends: n_clusters=10, update_interval=30
+    elif args.dataset == 'reuters10k':
         update_interval = 30
         pretrain_epochs = 50
         init = VarianceScaling(scale=1. / 3., mode='fan_in',
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
-    elif args.dataset == 'reutersidf10k':  # recommends: n_clusters=4, update_interval=3
+    elif args.dataset == 'usps':
         update_interval = 30
         pretrain_epochs = 50
+    elif args.dataset == 'stl':
+        update_interval = 30
+        pretrain_epochs = 10
 
     if args.update_interval is not None:
         update_interval = args.update_interval
@@ -256,7 +249,7 @@ if __name__ == "__main__":
 
     # prepare the IDEC model
     idec = IDEC(dims=[x.shape[-1], 500, 500, 2000, 10],
-                n_clusters=args.n_clusters, batch_size=args.batch_size)
+                n_clusters=args.n_clusters, init=init)
 
     if args.ae_weights is None:
         idec.pretrain(x=x, y=y, optimizer=pretrain_optimizer,
@@ -266,10 +259,10 @@ if __name__ == "__main__":
         idec.autoencoder.load_weights(args.ae_weights)
 
     #plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
-    idec.model.summary()
+    idec.model.summary()    
+    t0 = time()
     idec.compile(optimizer=optimizer, loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1)
     # begin clustering, time not include pretraining part.
-    t0 = time()
     y_pred = idec.clustering(x, y=y, tol=args.tol, maxiter=args.maxiter,
                              update_interval=args.update_interval, save_dir=args.save_dir)
     print('acc:', metrics.acc(y, y_pred))
