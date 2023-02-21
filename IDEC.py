@@ -261,7 +261,7 @@ if __name__ == "__main__":
     #plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
     idec.model.summary()    
     t0 = time()
-    idec.compile(optimizer=optimizer, loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1)
+    idec.compile(optimizer=SGD(lr=0.1, momentum=0.99), loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1)
     # begin clustering, time not include pretraining part.
     y_pred = idec.clustering(x, y=y, tol=args.tol, maxiter=args.maxiter,
                              update_interval=args.update_interval, save_dir=args.save_dir)
