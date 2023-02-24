@@ -243,11 +243,10 @@ if __name__ == "__main__":
     elif args.dataset == 'usps':
         update_interval = 30
         pretrain_epochs = 50
-        bs = 64
+        
     elif args.dataset == 'stl':
         update_interval = 30
         pretrain_epochs = 10
-        bs = 64
 
     if args.update_interval is not None:
         update_interval = args.update_interval
@@ -255,8 +254,8 @@ if __name__ == "__main__":
         pretrain_epochs = args.pretrain_epochs
 
     # prepare the IDEC model
-    idec = IDEC(dims=[x.shape[-1], 500, 500, 2000, 10],
-                n_clusters=args.n_clusters, init=init, batch_size=bs)
+    idec = IDEC(dims=[x.shape[-1], 200, 400, 400, 10],
+                n_clusters=args.n_clusters, init=init)
 
     if args.ae_weights is None:
         idec.pretrain(x=x, y=y, optimizer=pretrain_optimizer,

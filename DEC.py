@@ -131,7 +131,8 @@ class DEC(object):
         print('...Pretraining..., batch_size = ', batch_size)
         self.autoencoder.summary()
         self.autoencoder.compile(optimizer=optimizer, loss='mse')
-
+        self.encoder.summary()
+        
         csv_logger = callbacks.CSVLogger(save_dir + '/pretrain_log.csv')
         cb = [csv_logger]
         if y is not None:
@@ -147,7 +148,11 @@ class DEC(object):
                     feature_model = Model(self.model.input,
                                           self.model.get_layer(
                                               'encoder_%d' % (int(len(self.model.layers) / 2) - 1)).output)
+                    print('+ here: ' + 'encoder_%d' % (int(len(self.model.layers) / 2) - 1))    
+                    feature_model.summary()       
+                    
                     features = feature_model.predict(self.x)
+                    print(features)
                     km = KMeans(n_clusters=len(np.unique(self.y)), n_init=20)
                     y_pred = km.fit_predict(features)
                     print(self.y, np.unique(self.y), len(np.unique(self.y)), 'encoder_%d' % (int(len(self.model.layers) / 2) - 1))
