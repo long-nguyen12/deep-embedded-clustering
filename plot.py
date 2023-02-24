@@ -2,8 +2,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-idec = pd.read_csv('./plot/idec/idec_log.csv')
-dec = pd.read_csv('./plot/dec/dec_log.csv')
+dataset = 'reuters10k'
+idec = pd.read_csv('./results/' + dataset +'/idec/idec_log.csv')
+dec = pd.read_csv('./results/' + dataset + '/dec/dec_log.csv')
 
 val_idec_acc = idec[['acc']]
 

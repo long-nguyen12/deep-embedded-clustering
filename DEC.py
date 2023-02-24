@@ -261,8 +261,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='train',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dataset', default='mnist',
-                        choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl'])
+                        choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl', 'cifar10'])
     parser.add_argument('--batch_size', default=256, type=int)
+    parser.add_argument('--n_clusters', default=10, type=int)
     parser.add_argument('--maxiter', default=2e4, type=int)
     parser.add_argument('--pretrain_epochs', default=None, type=int)
     parser.add_argument('--update_interval', default=None, type=int)
@@ -282,6 +283,7 @@ if __name__ == "__main__":
 
     init = 'glorot_uniform'
     pretrain_optimizer = 'adam'
+    bs = 64
     # setting parameters
     if args.dataset == 'mnist' or args.dataset == 'fmnist':
         update_interval = 140
@@ -289,18 +291,26 @@ if __name__ == "__main__":
         init = VarianceScaling(scale=1. / 3., mode='fan_in',
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
+        bs = 256
     elif args.dataset == 'reuters10k':
         update_interval = 30
         pretrain_epochs = 50
         init = VarianceScaling(scale=1. / 3., mode='fan_in',
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
+        bs = 128
     elif args.dataset == 'usps':
         update_interval = 30
         pretrain_epochs = 50
+        bs = 64
     elif args.dataset == 'stl':
         update_interval = 30
         pretrain_epochs = 10
+        bs = 64
+    elif args.dataset == 'cifar10':
+        update_interval = 30
+        pretrain_epochs = 10
+        bs = 64
 
     if args.update_interval is not None:
         update_interval = args.update_interval
@@ -308,19 +318,22 @@ if __name__ == "__main__":
         pretrain_epochs = args.pretrain_epochs
 
     # prepare the DEC model
-    dec = DEC(dims=[x.shape[-1], 500, 500, 2000, 10], n_clusters=n_clusters, init=init)
+    dec = DEC(dims=[x.shape[-1], 500, 500, 2000, 10], n_clusters=args.n_clusters, init=init)
 
     if args.ae_weights is None:
         dec.pretrain(x=x, y=y, optimizer=pretrain_optimizer,
-                     epochs=pretrain_epochs, batch_size=args.batch_size,
+                     epochs=pretrain_epochs, batch_size=bs,
                      save_dir=args.save_dir)
     else:
         dec.autoencoder.load_weights(args.ae_weights)
 
     dec.model.summary()
     t0 = time()
+
+    path_save = "results/" + args.dataset + "dec"
+    print('+ path_save = ', path_save)
     dec.compile(optimizer=SGD(0.01, 0.9), loss='kld')
-    y_pred = dec.fit(x, y=y, tol=args.tol, maxiter=args.maxiter, batch_size=args.batch_size,
-                     update_interval=update_interval, save_dir=args.save_dir)
+    y_pred = dec.fit(x, y=y, tol=args.tol, maxiter=args.maxiter, batch_size=bs,
+                     update_interval=update_interval, save_dir=path_save)
     print('acc:', metrics.acc(y, y_pred))
     print('clustering time: ', (time() - t0))

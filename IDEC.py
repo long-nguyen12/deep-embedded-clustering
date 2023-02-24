@@ -13,7 +13,7 @@ from DEC import ClusteringLayer, autoencoder
 import metrics
 from keras.initializers import VarianceScaling
 
-
+path_save = ""
 class IDEC(object):
     def __init__(self,
                  dims,
@@ -96,9 +96,11 @@ class IDEC(object):
         return (weight.T / weight.sum(1)).T
 
     def compile(self, optimizer='sgd', loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1):
+
         self.model.compile(loss={'clustering': 'kld', 'decoder_0': 'mse'},
-                           loss_weights=[gamma, 1],
+                           loss_weights=[1, 0.1],
                            optimizer=optimizer)
+        #https://stackoverflow.com/questions/49583805/using-different-loss-functions-for-different-outputs-simultaneously-keras
 
     def clustering(self, x, y=None,
                    tol=1e-3,
@@ -154,11 +156,11 @@ class IDEC(object):
                           nmi, ', ari', ari, '; loss=', loss)
 
                 # check stop criterion
-                if ite > 0 and delta_label < tol:
-                    print('delta_label ', delta_label, '< tol ', tol)
-                    print('Reached tolerance threshold. Stopping training.')
-                    logfile.close()
-                    break
+                # if ite > 0 and delta_label < tol:
+                #     print('delta_label ', delta_label, '< tol ', tol)
+                #     print('Reached tolerance threshold. Stopping training.')
+                #     logfile.close()
+                #     break
 
             # train on batch
 
@@ -197,7 +199,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='train',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dataset', default='mnist',
-                        choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl'])
+                        choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl', 'cifar10'])
     parser.add_argument('--n_clusters', default=10, type=int)
     parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--maxiter', default=2e4, type=int)
@@ -222,6 +224,7 @@ if __name__ == "__main__":
 
     init = 'glorot_uniform'
     pretrain_optimizer = 'adam'
+    bs = 64
     # setting parameters
     if args.dataset == 'mnist' or args.dataset == 'fmnist':
         update_interval = 140
@@ -229,18 +232,22 @@ if __name__ == "__main__":
         init = VarianceScaling(scale=1. / 3., mode='fan_in',
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
+        bs = 256
     elif args.dataset == 'reuters10k':
         update_interval = 30
         pretrain_epochs = 50
         init = VarianceScaling(scale=1. / 3., mode='fan_in',
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
+        bs = 64
     elif args.dataset == 'usps':
         update_interval = 30
         pretrain_epochs = 50
+        bs = 64
     elif args.dataset == 'stl':
         update_interval = 30
         pretrain_epochs = 10
+        bs = 64
 
     if args.update_interval is not None:
         update_interval = args.update_interval
@@ -249,7 +256,7 @@ if __name__ == "__main__":
 
     # prepare the IDEC model
     idec = IDEC(dims=[x.shape[-1], 500, 500, 2000, 10],
-                n_clusters=args.n_clusters, init=init)
+                n_clusters=args.n_clusters, init=init, batch_size=bs)
 
     if args.ae_weights is None:
         idec.pretrain(x=x, y=y, optimizer=pretrain_optimizer,
@@ -263,7 +270,9 @@ if __name__ == "__main__":
     t0 = time()
     idec.compile(optimizer=SGD(lr=0.1, momentum=0.99) if args.dataset != 'mnist' else 'adam', loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1)
     # begin clustering, time not include pretraining part.
+    path_save = "results/" + args.dataset + "/idec"
+    print('+ path_save = ', path_save)
     y_pred = idec.clustering(x, y=y, tol=args.tol, maxiter=args.maxiter,
-                             update_interval=args.update_interval, save_dir=args.save_dir)
+                             update_interval=args.update_interval, save_dir=path_save)
     print('acc:', metrics.acc(y, y_pred))
     print('clustering time: ', (time() - t0))
