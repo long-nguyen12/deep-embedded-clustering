@@ -36,8 +36,7 @@ class IDEC(object):
         # prepare IDEC model
         clustering_layer = ClusteringLayer(
             self.n_clusters, name='clustering')(self.encoder.output)
-        self.model = Model(inputs=self.encoder.input, outputs=[
-                           clustering_layer, self.autoencoder.output])
+        self.model = Model(inputs=self.encoder.input, outputs=clustering_layer)
 
     def pretrain(self, x, y=None, optimizer='adam', epochs=200, batch_size=256, save_dir='results/temp'):
         print('...Pretraining..., batch_size = ', batch_size)
@@ -103,14 +102,13 @@ class IDEC(object):
 
     def compile(self, optimizer='sgd', loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1):
 
-        self.model.compile(loss={'clustering': 'kld', 'decoder_0': 'mse'},
-                           loss_weights=[0.8,  0.2], optimizer=optimizer)
+        self.model.compile(loss={'clustering': 'kld'}, optimizer=optimizer)
         #https://stackoverflow.com/questions/49583805/using-different-loss-functions-for-different-outputs-simultaneously-keras
 
     def clustering(self, x, y=None,
                    update_interval=30,
                    maxiter=5000,
-                   batch_size=64,
+                   batch_size = 64,
                    save_dir='./results/idec'):
 
         print('Update interval', update_interval)
@@ -130,16 +128,16 @@ class IDEC(object):
             os.makedirs(save_dir)
         logfile = open(save_dir + '/idec_log.csv', 'w')
         logwriter = csv.DictWriter(
-            logfile, fieldnames=['iter', 'acc', 'nmi', 'ari', 'L', 'Lc', 'Lr'])
+            logfile, fieldnames=['iter', 'acc', 'nmi', 'ari', 'loss'])
         logwriter.writeheader()
 
-        loss = [0, 0, 0]
+        loss = [0]
         index = 0
         index_array = np.arange(x.shape[0])
-        print('++++ index_array:',index_array)  
+        print(index_array)
         for ite in range(int(maxiter)):
             if ite % update_interval == 0:
-                q,_ = self.model.predict(x, verbose=0)
+                q = self.model.predict(x, verbose=0)
                 p = self.target_distribution(q)  # update the auxiliary target distribution p
 
                 # evaluate the clustering performance
@@ -149,19 +147,19 @@ class IDEC(object):
                     nmi = np.round(metrics.nmi(y, y_pred), 5)
                     ari = np.round(metrics.ari(y, y_pred), 5)
                     loss = np.round(loss, 5)
-                    logdict = dict(iter=ite, acc=acc, nmi=nmi, ari=ari, L=loss[0], Lc=loss[1], Lr=loss[2])
+                    logdict = dict(iter=ite, acc=acc, nmi=nmi,  ari=ari, loss=loss)
                     logwriter.writerow(logdict)
-                    print('Iter %d: acc = %.5f, nmi = %.5f, ari = %.5f' % (ite, acc, nmi, ari), ' ; loss=', loss, 'bs=',batch_size, 'max_iter=', maxiter, 'update_interval:', update_interval)
+                    print('Iter %d: acc = %.5f, nmi = %.5f, ari = %.5f' % (ite, acc, nmi, ari), ' ; loss=', loss, ', bs=',batch_size, ', max_iter=', maxiter, ', update_interval: ', update_interval)
 
             # train on batch, 
-            # if index == 0:
-            #     np.random.shuffle(index_array)     
-            #     print(index_array)          
+            if index == 0:
+                np.random.shuffle(index_array)     
+                print(index_array)      
             idx = index_array[index * batch_size: min((index+1) * batch_size, x.shape[0])]
-            loss = self.model.train_on_batch(x=x[idx], y=[p[idx], x[idx]])
+            loss = self.model.train_on_batch(x=x[idx], y=p[idx])
             index = index + 1 if (index + 1) * batch_size <= x.shape[0] else 0
-           
 
+           
             ite += 1
 
         # save the trained model
@@ -233,10 +231,9 @@ if __name__ == "__main__":
     elif args.dataset == 'cifar10':
         update_interval = 30
         pretrain_epochs = 20
-    
+
     path_save = "results/" + args.dataset + "/idec"
-    print('+ path_save = ', path_save)
-    
+
     # prepare the IDEC model
     idec = IDEC(dims=[x.shape[-1], 200, 200, 400, 20], n_clusters=num_clusters, init=init)
 
@@ -246,11 +243,13 @@ if __name__ == "__main__":
     else:
         idec.autoencoder.load_weights(path_save + '/ae_weights.h5')
 
+    #plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
     idec.model.summary()    
     t0 = time()
-    idec.compile(optimizer=SGD(0.01, 0.9), loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1)
+    idec.compile(optimizer=SGD(0.01, 0.9))
     # begin clustering, time not include pretraining part.
     
-    y_pred = idec.clustering(x, y=y, maxiter=args.maxiter, batch_size=bs, update_interval=update_interval, save_dir=path_save)
+    print('+ path_save = ', path_save)
+    y_pred = idec.clustering(x, y=y, maxiter=args.maxiter, update_interval=update_interval, batch_size=bs, save_dir=path_save)
     print('acc:', metrics.acc(y, y_pred))
     print('clustering time: ', (time() - t0))

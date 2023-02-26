@@ -245,19 +245,28 @@ def load_newsgroups():
 
 
 def load_cifar10(data_path='./data/cifar10'):
+    
+    # if features are ready, return them
+    import os.path
+    if os.path.exists(data_path + '/cifar10_features.npy') and os.path.exists(data_path + '/cifar10_labels.npy'):
+        return np.load(data_path + '/cifar10_features.npy'), np.load(data_path + '/cifar10_labels.npy')
+    
     from keras.datasets import cifar10
     (train_x, train_y), (test_x, test_y) = cifar10.load_data()
     x = np.concatenate((train_x, test_x))
     y = np.concatenate((train_y, test_y)).reshape((60000,))
 
+    x = x[:10000]
+    y = y[:10000]
+
     # if features are ready, return them
-    import os.path
-    if os.path.exists(data_path + '/cifar10_features.npy'):
-        return np.load(data_path + '/cifar10_features.npy'), y
+    # import os.path
+    # if os.path.exists(data_path + '/cifar10_features.npy'):
+    #     return np.load(data_path + '/cifar10_features.npy'), y
 
     # extract features
-    features = np.zeros((60000, 4096))
-    for i in range(6):
+    features = np.zeros((10000, 4096))
+    for i in range(1):
         idx = range(i*10000, (i+1)*10000)
         print("The %dth 10000 samples" % i)
         features[idx] = extract_vgg16_features(x[idx])
@@ -268,24 +277,28 @@ def load_cifar10(data_path='./data/cifar10'):
 
     # save features
     np.save(data_path + '/cifar10_features.npy', features)
-    print('features saved to ' + data_path + '/cifar10_features.npy')
+    print('+++  features saved to ' + data_path + '/cifar10_features.npy')
+
+    np.save(data_path + '/cifar10_labels.npy', y)
+    print('+++  labels saved to ' + data_path + '/cifar10_labels.npy')
 
     return features, y
 
 
 def load_stl(data_path='./data/stl'):
     import os
-    # assert os.path.exists(data_path + '/stl_features.npy') or not os.path.exists(data_path + '/train_X.bin'), \
-    #     "No data! Use %s/get_data.sh to get data ready, then come back" % data_path
-
+    # if features are ready, return them
+    if os.path.exists(data_path + '/stl_features.npy') and os.path.exists(data_path + '/stl_labels.npy'):
+        return np.load(data_path + '/stl_features.npy'), np.load(data_path + '/stl_labels.npy')
+    
     # get labels
     y1 = np.fromfile(data_path + '/train_y.bin', dtype=np.uint8) - 1
     y2 = np.fromfile(data_path + '/test_y.bin', dtype=np.uint8) - 1
     y = np.concatenate((y1, y2))
 
     # if features are ready, return them
-    if os.path.exists(data_path + '/stl_features.npy'):
-        return np.load(data_path + '/stl_features.npy'), y
+    # if os.path.exists(data_path + '/stl_features.npy'):
+    #     return np.load(data_path + '/stl_features.npy'), y
 
     # get data
     x1 = np.fromfile(data_path + '/train_X.bin', dtype=np.uint8)
@@ -294,6 +307,9 @@ def load_stl(data_path='./data/stl'):
     x2 = x2.reshape((int(x2.size/3/96/96), 3, 96, 96)).transpose((0, 3, 2, 1))
     x = np.concatenate((x1, x2)).astype(float)
 
+    x = x[:10000]
+    y = y[:10000]
+    print(y.size, "featuresfeaturesfeaturesfeaturesfeatures")
     # extract features
     features = extract_vgg16_features(x)
 
@@ -303,7 +319,10 @@ def load_stl(data_path='./data/stl'):
 
     # save features
     np.save(data_path + '/stl_features.npy', features)
-    print('features saved to ' + data_path + '/stl_features.npy')
+    print('+++ features saved to ' + data_path + '/stl_features.npy')
+
+    np.save(data_path + '/stl_labels.npy', y)
+    print('+++ labels saved to ' + data_path + '/stl_labels.npy')
 
     return features, y
 

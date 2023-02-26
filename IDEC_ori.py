@@ -44,12 +44,6 @@ class IDEC(object):
         self.autoencoder.summary()
         self.autoencoder.compile(optimizer=optimizer, loss='mse')
 
-        # logging file
-        import csv
-        import os
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-
         csv_logger = callbacks.CSVLogger(save_dir + '/pretrain_idec_log.csv')
         cb = [csv_logger]
         if y is not None:
@@ -104,24 +98,27 @@ class IDEC(object):
     def compile(self, optimizer='sgd', loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1):
 
         self.model.compile(loss={'clustering': 'kld', 'decoder_0': 'mse'},
-                           loss_weights=[0.8,  0.2], optimizer=optimizer)
+                           loss_weights=[1.0,  0.2],
+                           optimizer=optimizer)
         #https://stackoverflow.com/questions/49583805/using-different-loss-functions-for-different-outputs-simultaneously-keras
 
     def clustering(self, x, y=None,
-                   update_interval=30,
-                   maxiter=5000,
-                   batch_size=64,
+                   tol=1e-3,
+                   update_interval=140,
+                   maxiter=2e4,
                    save_dir='./results/idec'):
 
         print('Update interval', update_interval)
+        save_interval = x.shape[0] / self.batch_size * 10  # 10 epochs
+        print('Save interval', save_interval)
 
-        # Step 1: initialize cluster centers using k-means
-        t1 = time()
+        # initialize cluster centers using k-means
         print('Initializing cluster centers with k-means.')
         kmeans = KMeans(n_clusters=self.n_clusters, n_init=20)
         y_pred = kmeans.fit_predict(self.encoder.predict(x))
-        y_pred_last = np.copy(y_pred)
-        self.model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])       
+        y_pred_last = y_pred
+        self.model.get_layer(name='clustering').set_weights(
+            [kmeans.cluster_centers_])
 
         # logging file
         import csv
@@ -135,32 +132,55 @@ class IDEC(object):
 
         loss = [0, 0, 0]
         index = 0
-        index_array = np.arange(x.shape[0])
-        print('++++ index_array:',index_array)  
+
         for ite in range(int(maxiter)):
             if ite % update_interval == 0:
-                q,_ = self.model.predict(x, verbose=0)
-                p = self.target_distribution(q)  # update the auxiliary target distribution p
+                q, _ = self.model.predict(x, verbose=0)
+                # update the auxiliary target distribution p
+                p = self.target_distribution(q)
 
                 # evaluate the clustering performance
                 y_pred = q.argmax(1)
+                delta_label = np.sum(y_pred != y_pred_last).astype(
+                    np.float32) / y_pred.shape[0]
+                y_pred_last = y_pred
                 if y is not None:
                     acc = np.round(metrics.acc(y, y_pred), 5)
                     nmi = np.round(metrics.nmi(y, y_pred), 5)
                     ari = np.round(metrics.ari(y, y_pred), 5)
                     loss = np.round(loss, 5)
-                    logdict = dict(iter=ite, acc=acc, nmi=nmi, ari=ari, L=loss[0], Lc=loss[1], Lr=loss[2])
+                    logdict = dict(iter=ite, acc=acc, nmi=nmi,
+                                   ari=ari, L=loss[0], Lc=loss[1], Lr=loss[2])
                     logwriter.writerow(logdict)
-                    print('Iter %d: acc = %.5f, nmi = %.5f, ari = %.5f' % (ite, acc, nmi, ari), ' ; loss=', loss, 'bs=',batch_size, 'max_iter=', maxiter, 'update_interval:', update_interval)
+                    print('Iter', ite, ': Acc', acc, ', nmi',
+                          nmi, ', ari', ari, '; loss=', loss)
 
-            # train on batch, 
-            # if index == 0:
-            #     np.random.shuffle(index_array)     
-            #     print(index_array)          
-            idx = index_array[index * batch_size: min((index+1) * batch_size, x.shape[0])]
-            loss = self.model.train_on_batch(x=x[idx], y=[p[idx], x[idx]])
-            index = index + 1 if (index + 1) * batch_size <= x.shape[0] else 0
-           
+                # check stop criterion
+                # if ite > 0 and delta_label < tol:
+                #     print('delta_label ', delta_label, '< tol ', tol)
+                #     print('Reached tolerance threshold. Stopping training.')
+                #     logfile.close()
+                #     break
+
+            # train on batch
+
+            if (index + 1) * self.batch_size > x.shape[0]:
+                loss = self.model.train_on_batch(x=x[index * self.batch_size::],
+                                                 y=[p[index * self.batch_size::], x[index * self.batch_size::]])
+                index = 0
+            else:
+                loss = self.model.train_on_batch(x=x[index * self.batch_size:(index + 1) * self.batch_size],
+                                                 y=[p[index * self.batch_size:(index + 1) * self.batch_size],
+                                                    x[index * self.batch_size:(index + 1) * self.batch_size]])
+                index += 1
+
+            # save intermediate model
+            if ite % save_interval == 0:
+                # save IDEC model checkpoints
+                print('saving model to:', save_dir +
+                      '/IDEC_model_' + str(ite) + '.h5')
+                self.model.save_weights(
+                    save_dir + '/IDEC_model_' + str(ite) + '.h5')
 
             ite += 1
 
@@ -182,7 +202,7 @@ if __name__ == "__main__":
                         choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl', 'cifar10'])
     parser.add_argument('--n_clusters', default=10, type=int)
     parser.add_argument('--batch_size', default=256, type=int)
-    parser.add_argument('--maxiter', default=5000, type=int)
+    parser.add_argument('--maxiter', default=2e4, type=int)
     parser.add_argument('--gamma', default=0.1, type=float,
                         help='coefficient of clustering loss')
     parser.add_argument('--pretrain_epochs', default=None, type=int)
@@ -205,21 +225,19 @@ if __name__ == "__main__":
     init = 'glorot_uniform'
     pretrain_optimizer = 'adam'
     bs = 64
-    update_interval = 30
-    pretrain_epochs = 300
-    num_clusters = 10
-
     # setting parameters
     if args.dataset == 'mnist' or args.dataset == 'fmnist':
         update_interval = 140
         pretrain_epochs = 300
-        init = VarianceScaling(scale=1. / 3., mode='fan_in', distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
+        init = VarianceScaling(scale=1. / 3., mode='fan_in',
+                               distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
         bs = 256
     elif args.dataset == 'reuters10k':
         update_interval = 30
         pretrain_epochs = 50
-        init = VarianceScaling(scale=1. / 3., mode='fan_in', distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
+        init = VarianceScaling(scale=1. / 3., mode='fan_in',
+                               distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
         bs = 64
     elif args.dataset == 'usps':
@@ -229,28 +247,34 @@ if __name__ == "__main__":
     elif args.dataset == 'stl':
         update_interval = 30
         pretrain_epochs = 30
-        bs = 64
     elif args.dataset == 'cifar10':
         update_interval = 30
         pretrain_epochs = 20
-    
-    path_save = "results/" + args.dataset + "/idec"
-    print('+ path_save = ', path_save)
-    
+
+    if args.update_interval is not None:
+        update_interval = args.update_interval
+    if args.pretrain_epochs is not None:
+        pretrain_epochs = args.pretrain_epochs
+
     # prepare the IDEC model
-    idec = IDEC(dims=[x.shape[-1], 200, 200, 400, 20], n_clusters=num_clusters, init=init)
+    idec = IDEC(dims=[x.shape[-1], 200, 200, 400, 20],
+                n_clusters=args.n_clusters, init=init)
 
     if args.ae_weights is None:
-        idec.autoencoder.load_weights(path_save + '/ae_weights.h5')
-        #idec.pretrain(x=x, y=y, optimizer=pretrain_optimizer, epochs=pretrain_epochs, batch_size=args.batch_size, save_dir=path_save)
+        idec.pretrain(x=x, y=y, optimizer=pretrain_optimizer,
+                      epochs=pretrain_epochs, batch_size=args.batch_size,
+                      save_dir=args.save_dir)
     else:
-        idec.autoencoder.load_weights(path_save + '/ae_weights.h5')
+        idec.autoencoder.load_weights(args.ae_weights)
 
+    #plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
     idec.model.summary()    
     t0 = time()
-    idec.compile(optimizer=SGD(0.01, 0.9), loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1)
+    idec.compile(optimizer=SGD(lr=0.1, momentum=0.99) if args.dataset != 'mnist' else 'adam', loss={'clustering': 'kld', 'decoder_0': 'mse'}, gamma=0.1)
     # begin clustering, time not include pretraining part.
-    
-    y_pred = idec.clustering(x, y=y, maxiter=args.maxiter, batch_size=bs, update_interval=update_interval, save_dir=path_save)
+    path_save = "results/" + args.dataset + "/idec"
+    print('+ path_save = ', path_save)
+    y_pred = idec.clustering(x, y=y, tol=args.tol, maxiter=args.maxiter,
+                             update_interval=args.update_interval, save_dir=path_save)
     print('acc:', metrics.acc(y, y_pred))
     print('clustering time: ', (time() - t0))

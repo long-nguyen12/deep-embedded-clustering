@@ -131,7 +131,13 @@ class DEC(object):
         print('...Pretraining..., batch_size = ', batch_size)
         self.autoencoder.summary()
         self.autoencoder.compile(optimizer=optimizer, loss='mse')
-        self.encoder.summary()
+        # self.encoder.summary()
+
+        # logging file
+        import csv
+        import os
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
         
         csv_logger = callbacks.CSVLogger(save_dir + '/pretrain_log.csv')
         cb = [csv_logger]
@@ -149,13 +155,14 @@ class DEC(object):
                                           self.model.get_layer(
                                               'encoder_%d' % (int(len(self.model.layers) / 2) - 1)).output)
                     print('+ here: ' + 'encoder_%d' % (int(len(self.model.layers) / 2) - 1))    
-                    feature_model.summary()       
+                    # feature_model.summary()       
                     
                     features = feature_model.predict(self.x)
-                    print(features)
+                    # print(features)
+                    print(np.unique(self.y))
                     km = KMeans(n_clusters=len(np.unique(self.y)), n_init=20)
                     y_pred = km.fit_predict(features)
-                    print(self.y, np.unique(self.y), len(np.unique(self.y)), 'encoder_%d' % (int(len(self.model.layers) / 2) - 1))
+                    print(self.y.size, np.unique(self.y), y_pred.size, 'encoder_%d' % (int(len(self.model.layers) / 2) - 1))
                     print(' '*8 + '|==>  acc: %.4f,  nmi: %.4f  <==|'
                           % (metrics.acc(self.y, y_pred), metrics.nmi(self.y, y_pred)))
 
@@ -205,6 +212,9 @@ class DEC(object):
         # Step 2: deep clustering
         # logging file
         import csv
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
         logfile = open(save_dir + '/dec_log.csv', 'w')
         logwriter = csv.DictWriter(logfile, fieldnames=['iter', 'acc', 'nmi', 'ari', 'loss'])
         logwriter.writeheader()
@@ -226,29 +236,18 @@ class DEC(object):
                     loss = np.round(loss, 5)
                     logdict = dict(iter=ite, acc=acc, nmi=nmi, ari=ari, loss=loss)
                     logwriter.writerow(logdict)
-                    print('Iter %d: acc = %.5f, nmi = %.5f, ari = %.5f' % (ite, acc, nmi, ari), ' ; loss=', loss)
-
-                # check stop criterion
-                delta_label = np.sum(y_pred != y_pred_last).astype(np.float32) / y_pred.shape[0]
-                y_pred_last = np.copy(y_pred)
-                if ite > 0 and delta_label < tol:
-                    print('delta_label ', delta_label, '< tol ', tol)
-                    print('Reached tolerance threshold. Stopping training.')
-                    logfile.close()
-                    break
+                    print('Iter %d: acc = %.5f, nmi = %.5f, ari = %.5f' % (ite, acc, nmi, ari), ' ; loss=', loss, 'bs=',batch_size, 'max_iter=', maxiter, ', update_interval:', update_interval)
+               
 
             # train on batch
-            # if index == 0:
-            #     np.random.shuffle(index_array)
+            if index == 0:
+                np.random.shuffle(index_array)
+                print('+ index_array:', index_array)
             idx = index_array[index * batch_size: min((index+1) * batch_size, x.shape[0])]
             loss = self.model.train_on_batch(x=x[idx], y=p[idx])
             index = index + 1 if (index + 1) * batch_size <= x.shape[0] else 0
 
-            # save intermediate model
-            if ite % save_interval == 0:
-                print('saving model to:', save_dir + '/DEC_model_' + str(ite) + '.h5')
-                self.model.save_weights(save_dir + '/DEC_model_' + str(ite) + '.h5')
-
+         
             ite += 1
 
         # save the trained model
@@ -269,7 +268,7 @@ if __name__ == "__main__":
                         choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl', 'cifar10'])
     parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--n_clusters', default=10, type=int)
-    parser.add_argument('--maxiter', default=2e4, type=int)
+    parser.add_argument('--maxiter', default=3000, type=int)
     parser.add_argument('--pretrain_epochs', default=None, type=int)
     parser.add_argument('--update_interval', default=None, type=int)
     parser.add_argument('--tol', default=0.001, type=float)
@@ -284,11 +283,16 @@ if __name__ == "__main__":
     # load dataset
     from datasets import load_data
     x, y = load_data(args.dataset)
+    print(x.size ,y.size, 'load_dataload_dataload_data')
     n_clusters = len(np.unique(y))
 
     init = 'glorot_uniform'
     pretrain_optimizer = 'adam'
     bs = 64
+    update_interval = 30
+    pretrain_epochs = 300
+    num_clusters = 10
+
     # setting parameters
     if args.dataset == 'mnist' or args.dataset == 'fmnist':
         update_interval = 140
@@ -309,36 +313,30 @@ if __name__ == "__main__":
         pretrain_epochs = 50
         bs = 64
     elif args.dataset == 'stl':
-        update_interval = 30
-        pretrain_epochs = 10
+        update_interval = 60
+        pretrain_epochs = 30
         bs = 64
     elif args.dataset == 'cifar10':
         update_interval = 30
-        pretrain_epochs = 10
+        pretrain_epochs = 30
         bs = 64
 
-    if args.update_interval is not None:
-        update_interval = args.update_interval
-    if args.pretrain_epochs is not None:
-        pretrain_epochs = args.pretrain_epochs
-
     # prepare the DEC model
-    dec = DEC(dims=[x.shape[-1], 500, 500, 2000, 10], n_clusters=args.n_clusters, init=init)
+    dec = DEC(dims=[x.shape[-1], 200, 200, 400, 20], n_clusters=num_clusters, init=init)
+
+    path_save = "results/" + args.dataset + "/dec"
+    print('+ path_save = ', path_save)
 
     if args.ae_weights is None:
-        dec.pretrain(x=x, y=y, optimizer=pretrain_optimizer,
-                     epochs=pretrain_epochs, batch_size=bs,
-                     save_dir=args.save_dir)
+        dec.autoencoder.load_weights(path_save + '/ae_weights.h5')
+        #dec.pretrain(x=x, y=y, optimizer=pretrain_optimizer, epochs=pretrain_epochs, batch_size=bs, save_dir=path_save)    
     else:
-        dec.autoencoder.load_weights(args.ae_weights)
+        dec.autoencoder.load_weights(path_save + '/ae_weights.h5')
 
     dec.model.summary()
     t0 = time()
-
-    path_save = "results/" + args.dataset + "dec"
-    print('+ path_save = ', path_save)
+    
     dec.compile(optimizer=SGD(0.01, 0.9), loss='kld')
-    y_pred = dec.fit(x, y=y, tol=args.tol, maxiter=args.maxiter, batch_size=bs,
-                     update_interval=update_interval, save_dir=path_save)
+    y_pred = dec.fit(x, y=y, tol=args.tol, maxiter=args.maxiter, batch_size=bs,update_interval=update_interval, save_dir=path_save)
     print('acc:', metrics.acc(y, y_pred))
     print('clustering time: ', (time() - t0))
